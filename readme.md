@@ -30,13 +30,23 @@ Four parts, three directories:
 
 A Rust service exposing an HTTP API. It indexes and queries the contents of `data/`, ranking results with pre-calculated word embeddings rather than plain keyword matching.
 
-Suggested endpoints:
-
-- `GET /search?q=...&limit=...` — semantic search, returns ranked articles/passages with scores
-- `GET /doc/{id}` — fetch a full document by ID
-- `GET /health` — liveness check
-
 The frontend talks to this and only to this for retrieval; no other component reads `data/` directly.
+
+#### Protocol: HTTP + JSON, defined by `search/openapi.yaml`
+
+The contract is an OpenAPI 3.1 document at [`search/openapi.yaml`](search/openapi.yaml). The Rust service must implement it (and ideally validate its own responses against it); the frontend validates everything it receives with a runtime mirror of the schemas in `frontend/src/protocol.js`. Keep the two in sync.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /search?q=...&limit=...&offset=...` | Semantic search → ranked `SearchResponse` |
+| `GET /doc/{id}` | Full `Document` text by ID |
+| `GET /health` | Liveness + index stats |
+
+Conventions:
+
+- Scores are floats in `[0, 1]`, higher is better, results sorted best-first
+- Errors are RFC 9457 problem details (`application/problem+json`): `{type, title, status, detail?}`
+- Everything is JSON over plain HTTP so it can be curl'd by hand while developing
 
 ### `llm/` — locally hosted LLM
 
@@ -52,14 +62,41 @@ LLM_MODEL=<model-name>
 
 ### `frontend/` — Node.js server
 
-The user-facing piece. It:
+The user-facing piece: a zero-dependency Node (>= 20) server that serves a plain HTML/CSS/JS UI and proxies/orchestrates the other two services. It is the only component that knows about both of them.
 
-1. Receives the user's query from the browser
-2. Calls the Rust search API to retrieve relevant passages from `data/`
-3. Builds a prompt from those passages and calls the OpenAI-compatible LLM API
-4. Streams the answer back to the browser, citations to the retrieved documents included
+```
+frontend/
+  openapi consumer:  src/protocol.js      runtime mirror of search/openapi.yaml
+  search client:     src/searchClient.js  fetch + response validation
+  llm client:        src/llmClient.js     OpenAI-compatible SSE streaming
+  server:            src/server.js        routing, static files, prompts
+  ui:                public/              index.html, style.css, app.js
+  dev helper:        test/mock-search.mjs toy search engine (delete when Rust lands)
+```
 
-It is the only component that knows about both of the others.
+Endpoints it exposes:
+
+| Endpoint | Behaviour |
+|---|---|
+| `GET /` | The UI |
+| `GET /api/search?q=&limit=&offset=` | Proxies to the Rust `GET /search`, validated |
+| `POST /api/ask` `{q}` | Searches, takes the top 3 docs as context, streams the LLM answer back as Server-Sent Events |
+| `GET /api/health` | Reports search + LLM status |
+
+SSE events on `/api/ask`, in order:
+
+1. `results` — `{query, total, results}` straight from the search engine
+2. `token` — `{text}` one LLM delta at a time
+3. `done` — `{model, cited:[{id,title,url}]}` citation list for the footer
+4. `error` — `{message}` if anything upstream fails
+
+Run it:
+
+```sh
+cd frontend
+npm run mock:search &          # toy search engine, until search/ is real
+PORT=3456 LLM_BASE_URL=http://<llm-host>:<port>/v1 LLM_MODEL=<name> npm start
+```
 
 ### `data/` — Wikipedia dump + embeddings
 
@@ -78,9 +115,9 @@ Once the Wikipedia dump and embeddings are downloaded and the model is in place,
 Nothing is scaffolded yet. Rough order of work:
 
 1. **data** — download the Wikipedia dump and its embeddings into `data/`, decide on the on-disk format
-2. **search** — `cargo init` in `search/`, load the embeddings, expose the HTTP API
-3. **frontend** — `npm init` in `frontend/`, wire up the search and LLM base URLs
-4. **llm** — bring up the OpenAI-compatible server on the second machine
+2. **search** — `cargo init` in `search/`, load the embeddings, implement `search/openapi.yaml`
+3. **frontend** — done; run it against `npm run mock:search` until the Rust engine exists
+4. **llm** — bring up the OpenAI-compatible server on the second machine, point `LLM_BASE_URL` at it
 
 ## Configuration
 

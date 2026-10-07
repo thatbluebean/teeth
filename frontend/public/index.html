@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Teeth</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Teeth</h1>
+      <p class="tagline">Offline Wikipedia search + local LLM</p>
+      <span id="status" class="status"></span>
+    </header>
+
+    <main>
+      <form id="search-form" class="search-bar">
+        <input
+          id="query"
+          type="search"
+          placeholder="Search the corpus…"
+          autocomplete="off"
+          autofocus
+        />
+        <button type="button" id="search-btn">Search</button>
+        <button type="button" id="ask-btn" class="secondary">Ask LLM</button>
+      </form>
+
+      <section id="answer" class="answer hidden">
+        <div class="answer-head">
+          <h2>Answer</h2>
+          <span id="answer-meta" class="muted"></span>
+        </div>
+        <div id="answer-text" class="answer-text"></div>
+        <ul id="citations" class="citations"></ul>
+      </section>
+
+      <section id="results">
+        <div class="results-head">
+          <h2>Results</h2>
+          <span id="results-meta" class="muted"></span>
+        </div>
+        <ol id="result-list" class="result-list"></ol>
+        <p id="empty" class="muted hidden">Nothing yet — try a query.</p>
+      </section>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
