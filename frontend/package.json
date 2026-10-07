@@ -1,0 +1,14 @@
+{
+  "name": "teeth-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Node server that ties the Rust search engine and the local OpenAI-compatible LLM together",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "mock:search": "node test/mock-search.mjs"
+  }
+}
